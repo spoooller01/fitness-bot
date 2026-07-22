@@ -2,7 +2,7 @@ import os
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage, PushMessageRequest
+from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage, PushMessageRequest, MessagingApiBlob
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent
 import google.generativeai as genai
 from supabase import create_client
@@ -72,7 +72,7 @@ def handle_text(event):
 # 2. Endpoint สำหรับให้ Cron-job ทักมาเตือนอัตโนมัติ
 @app.route("/remind", methods=['GET'])
 def remind_user():
-    user_id = "YOUR_LINE_USER_ID" # ใส่ User ID ของคุณ
+    user_id = "U6a38069ebb54d742af66cc1b09cc0ee0" # ใส่ User ID ของคุณ
     reminder_msg = "อย่าลืมอัปเดตมื้ออาหารเย็น และชั่งน้ำหนักวันนี้ด้วยนะ!"
     
     with ApiClient(configuration) as api_client:
@@ -87,3 +87,49 @@ def remind_user():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
+
+@handler.add(MessageEvent, message=ImageMessageContent)
+def handle_image(event):
+    message_id = event.message.id
+    
+    # 1. โหลดรูปภาพจาก LINE Server
+    with ApiClient(configuration) as api_client:
+        line_bot_blob_api = MessagingApiBlob(api_client)
+        image_bytes = line_bot_blob_api.get_message_content(message_id)
+        
+    # 2. บันทึกรูปลง Supabase Storage
+    file_path = f"progress/{message_id}.jpg"
+    supabase.storage.from_("fitness-photos").upload(
+        path=file_path,
+        file=image_bytes,
+        file_options={"content-type": "image/jpeg"}
+    )
+    
+    # ดึง Public URL ของรูปที่เพิ่งอัปโหลด
+    image_url = supabase.storage.from_("fitness-photos").get_public_url(file_path)
+    
+    # 3. ให้ Gemini วิเคราะห์รูปภาพ
+    # ส่ง bytes ของรูปภาพไปให้ Gemini
+    response = model.generate_content([
+        "วิเคราะห์รูปนี้: ถ้าเป็นอาหาร ให้ประเมินเมนู แคลอรี และสารอาหาร (โปรตีน/คาร์บ/ไขมัน) "
+        "ถ้าเป็นรูปคน/หุ่น ให้ประเมินลักษณะรูปร่าง และให้คำแนะนำฟิตเนสสั้นๆ",
+        {"mime_type": "image/jpeg", "data": image_bytes}
+    ])
+    ai_analysis = response.text
+    
+    # 4. บันทึกข้อมูลลง Database (user_logs)
+    supabase.table("user_logs").insert({
+        "type": "progress_pic", # หรือจัดประเภทอัตโนมัติ
+        "details": ai_analysis,
+        "image_url": image_url
+    }).execute()
+    
+    # 5. ตอบกลับผู้ใช้ทาง LINE
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.reply_message(
+            ReplyMessageRequest(
+                replyToken=event.replyToken,
+                messages=[TextMessage(text=f"บันทึกรูปเรียบร้อยครับ! 📸\n\nผลการวิเคราะห์:\n{ai_analysis}")]
+            )
+        )
