@@ -9,27 +9,28 @@ from supabase import create_client
 
 app = Flask(__name__)
 
-# 1. ดึง Keys ทั้งหมดจาก Environment Variables
+# ดึงค่า Environment Variables
 LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET', '').strip()
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', '').strip()
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '').strip()
 SUPABASE_URL = os.getenv('SUPABASE_URL', '').strip()
 SUPABASE_KEY = os.getenv('SUPABASE_KEY', '').strip()
 
-# 2. ตั้งค่าการเชื่อมต่อ Clients
+# ตั้งค่า Clients
 genai.configure(api_key=GEMINI_API_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
-# ฟังก์ชันเลือกเรียกใช้ Gemini API
+# เลือกใช้ Gemini 2.0 / 2.5 Flash
 def get_gemini_response(prompt):
     try:
         model = genai.GenerativeModel('gemini-2.0-flash')
         return model.generate_content(prompt).text
-    except Exception:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        print(f"Gemini Error: {e}")
+        model = genai.GenerativeModel('gemini-2.5-flash')
         return model.generate_content(prompt).text
 
 @app.route("/callback", methods=['POST'])
@@ -47,13 +48,10 @@ def callback():
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_text(event):
     user_text = event.message.text
-    user_id = event.source.user_id
     reply_text = ""
 
     try:
-        # กรณีผู้ใช้พิมพ์ขอเปรียบเทียบรูป
         if "เปรียบเทียบ" in user_text:
-            # ดึงข้อมูล API จาก Supabase Database (ดึง 2 รูปล่าสุดของคุณ)
             res = supabase.table('user_logs') \
                 .select('image_url') \
                 .eq('type', 'progress_pic') \
@@ -64,33 +62,31 @@ def handle_text(event):
             if len(res.data) >= 2:
                 img_new = res.data[0]['image_url']
                 img_old = res.data[1]['image_url']
-                prompt = f"วิเคราะห์ความเปลี่ยนไปของรูปร่างจาก 2 ภาพนี้ ภาพปัจจุบัน: {img_new} ภาพอดีต: {img_old}"
+                prompt = f"วิเคราะห์ความต่างของรูปร่างจาก 2 ภาพนี้ ภาพปัจจุบัน: {img_new} ภาพอดีต: {img_old}"
                 reply_text = get_gemini_response(prompt)
             else:
                 reply_text = "ยังมีรูปภาพในฐานข้อมูลไม่เพียงพอสำหรับเปรียบเทียบครับ (ต้องมีอย่างน้อย 2 รูป)"
-        
         else:
-            # ตอบคำถามทั่วไป และบันทึกข้อความลง Database
-            prompt = f"คุณคือ AI เทรนเนอร์ฟิตเนส ให้คำแนะนำอย่างเป็นกันเองและสั้นกระชับ: {user_text}"
+            prompt = f"คุณคือ AI เทรนเนอร์ฟิตเนส ตอบอย่างเป็นกันเอง สั้น กระชับ ให้กำลังใจ: {user_text}"
             reply_text = get_gemini_response(prompt)
             
-            # บันทึกประวัติการคุยลง Supabase
+            # บันทึกประวัติลง Supabase
             supabase.table('user_logs').insert({
                 'type': 'text_chat',
                 'details': f"User: {user_text} | AI: {reply_text}"
             }).execute()
 
     except Exception as e:
-        print(f"Error: {e}")
-        reply_text = f"เกิดข้อผิดพลาดในการประมวลผล: {str(e)}"
+        print(f"Processing Error: {e}")
+        reply_text = f"เกิดข้อผิดพลาด: {str(e)}"
 
-    # ส่งข้อความตอบกลับ LINE
+    # ส่งข้อความตอบกลับ (ใช้ event.reply_token ที่แก้ไขแล้ว)
     try:
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
             line_bot_api.reply_message(
                 ReplyMessageRequest(
-                    replyToken=event.replyToken,
+                    replyToken=event.reply_token,  # <--- แก้ไขตรงนี้เรียบร้อยครับ
                     messages=[TextMessage(text=reply_text)]
                 )
             )
