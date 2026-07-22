@@ -25,23 +25,26 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
 def get_gemini_response(prompt):
-    # ใช้ 1.5-flash ตัวหลัก และ 1.5-pro/1.5-flash-8b เป็นตัวสำรอง
-    models_to_try = [
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-8b',
-        'gemini-1.5-pro'
-    ]
-    
-    for model_name in models_to_try:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            print(f"Error with {model_name}: {e}")
-            time.sleep(2)  # หน่วงเวลา 2 วินาทีเพื่อให้ Quota คืนค่า
+    try:
+        # 1. ดึงรายชื่อโมเดลทั้งหมดที่ API Key ของคุณมีสิทธิ์ใช้งาน
+        available_models = [
+            m.name for m in genai.list_models() 
+            if 'generateContent' in m.supported_generation_methods
+        ]
+        
+        if not available_models:
+            return "ไม่พบโมเดล AI ที่รองรับในระบบตอนนี้ครับ"
             
-    return "ตอนนี้ระบบโควต้า AI เต็มชั่วคราวครับ กรุณาลองใหม่อีกครั้งในอีก 1 นาทีนะ!"
+        # 2. พยายามเลือกใช้โมเดลตระกูล Flash ก่อน เพราะประมวลผลไวและฟรี
+        target_model = next((m for m in available_models if 'flash' in m), available_models[0])
+        
+        # 3. สั่งรัน AI
+        model = genai.GenerativeModel(target_model)
+        return model.generate_content(prompt).text
+        
+    except Exception as e:
+        print(f"Gemini Error: {e}")
+        return f"ขออภัยครับ โควต้า AI น่าจะเต็มหรือระบบขัดข้องชั่วคราว: {str(e)}"
 
 @app.route("/callback", methods=['POST'])
 def callback():
