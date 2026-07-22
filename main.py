@@ -1,4 +1,5 @@
 import os
+import time
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -23,15 +24,26 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
-# เลือกใช้ Gemini 2.0 / 2.5 Flash
+# เปลี่ยนฟังก์ชันนี้ใน main.py
 def get_gemini_response(prompt):
-    try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        return model.generate_content(prompt).text
-    except Exception as e:
-        print(f"Gemini Error: {e}")
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        return model.generate_content(prompt).text
+    # รายชื่อโมเดลที่เสถียรที่สุดเรียงตามลำดับ
+    models_to_try = [
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash-8b',
+        'gemini-2.0-flash-lite'
+    ]
+    
+    last_error = None
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
+            return model.generate_content(prompt).text
+        except Exception as e:
+            print(f"Failed with {model_name}: {e}")
+            last_error = e
+            time.sleep(1) # พัก 1 วินาทีก่อนลองรุ่นถัดไป
+            
+    raise last_error
 
 @app.route("/callback", methods=['POST'])
 def callback():
