@@ -24,26 +24,24 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
-# เปลี่ยนฟังก์ชันนี้ใน main.py
 def get_gemini_response(prompt):
-    # รายชื่อโมเดลที่เสถียรที่สุดเรียงตามลำดับ
+    # ใช้ 1.5-flash ตัวหลัก และ 1.5-pro/1.5-flash-8b เป็นตัวสำรอง
     models_to_try = [
-        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash',
         'gemini-1.5-flash-8b',
-        'gemini-2.0-flash-lite'
+        'gemini-1.5-pro'
     ]
     
-    last_error = None
     for model_name in models_to_try:
         try:
             model = genai.GenerativeModel(model_name)
-            return model.generate_content(prompt).text
+            response = model.generate_content(prompt)
+            return response.text
         except Exception as e:
-            print(f"Failed with {model_name}: {e}")
-            last_error = e
-            time.sleep(1) # พัก 1 วินาทีก่อนลองรุ่นถัดไป
+            print(f"Error with {model_name}: {e}")
+            time.sleep(2)  # หน่วงเวลา 2 วินาทีเพื่อให้ Quota คืนค่า
             
-    raise last_error
+    return "ตอนนี้ระบบโควต้า AI เต็มชั่วคราวครับ กรุณาลองใหม่อีกครั้งในอีก 1 นาทีนะ!"
 
 @app.route("/callback", methods=['POST'])
 def callback():
