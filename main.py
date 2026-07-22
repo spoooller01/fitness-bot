@@ -19,7 +19,7 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # ตั้งค่า Client
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.0-flash')
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
