@@ -25,19 +25,28 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
 def get_gemini_response(prompt):
-    models_to_try = [
-        'gemini-1.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash-8b'
-    ]
-    for model_name in models_to_try:
-        try:
-            model = genai.GenerativeModel(model_name)
-            return model.generate_content(prompt).text
-        except Exception as e:
-            print(f"Error {model_name}: {e}")
-            
-    return "ขออภัยครับ ระบบ AI ขัดข้องชั่วคราว"
+    try:
+        # 1. ดึงรายชื่อโมเดลทั้งหมดที่ API Key ของเราใช้งานได้จริง
+        available_models = [
+            m.name for m in genai.list_models() 
+            if 'generateContent' in m.supported_generation_methods
+        ]
+        
+        if not available_models:
+            return "ไม่พบโมเดล AI ที่พร้อมใช้งานในขณะนี้"
+
+        # 2. เลือกโมเดลแรกสุดที่ค้นพบในบัญชี (ไม่ต้องใส่ชื่อรุ่นแบบสุ่มเอง)
+        selected_model = available_models[0]
+        print(f"Using model: {selected_model}")
+        
+        # 3. ประมวลผลข้อความ
+        model = genai.GenerativeModel(selected_model)
+        response = model.generate_content(prompt)
+        return response.text
+        
+    except Exception as e:
+        print(f"Gemini Exception: {e}")
+        return f"ระบบ AI ขัดข้องชั่วคราว: {str(e)}"
     
 @app.route("/callback", methods=['POST'])
 def callback():
