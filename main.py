@@ -27,7 +27,7 @@ configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 def get_gemini_response(prompt):
     try:
         # ใช้ชื่อโมเดลมาตรฐานของ Gemini API 
-        model_name = 'gemini-2.5-flash'
+        model_name = 'gemini-2.0-flash'
         print(f"--- RUNNING MODEL: {model_name} ---")
         
         model = genai.GenerativeModel(model_name)
