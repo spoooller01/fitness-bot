@@ -1,5 +1,6 @@
 import os
 import time
+import google.generativeai as genai
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -26,8 +27,7 @@ configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
 def get_gemini_response(prompt):
     try:
-        # ใช้ gemini-2.0-flash ตัวเดียวที่ผ่านการทดสอบแล้ว
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
