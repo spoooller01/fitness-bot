@@ -38,7 +38,7 @@ def get_available_models():
 
 def get_gemini_response(prompt, image_bytes=None, mime_type="image/jpeg"):
     # กำหนดเฉพาะโมเดลที่เราต้องการใช้งานจริงเท่านั้น
-    target_models = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    target_models = ['gemini-2.0-flash']
     
     last_error = None
     for model_name in target_models:
