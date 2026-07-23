@@ -27,12 +27,37 @@ configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
 def get_gemini_response(prompt):
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
-        return response.text
+        # 1. ค้นหารายชื่อโมเดลทั้งหมดที่ API Key นี้มีสิทธิ์เรียกใช้จริง
+        valid_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                # ตัดคำว่า 'models/' ออกเพื่อให้ได้ชื่อโมเดลที่ถูกต้อง
+                model_name = m.name.replace('models/', '')
+                valid_models.append(model_name)
+        
+        print(f"--- Available Models in your account: {valid_models} ---")
+        
+        if not valid_models:
+            return "ไม่พบโมเดลที่รองรับในบัญชีนี้ กรุณาเช็ก API Key"
+
+        # 2. ลองยิงทีละโมเดลที่มีอยู่จริง ตัวไหนผ่านใช้ตัวนั้นทันที
+        last_error = None
+        for model_name in valid_models:
+            try:
+                print(f"Trying model: {model_name}")
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                return response.text
+            except Exception as err:
+                print(f"Failed with {model_name}: {err}")
+                last_error = err
+                continue
+
+        return f"ระบบ AI ขัดข้อง: {last_error}"
+
     except Exception as e:
-        print(f"Gemini Error: {e}")
-        return f"ระบบ AI ขัดข้อง: {str(e)}"
+        print(f"Gemini Exception: {e}")
+        return f"เกิดข้อผิดพลาดในการดึงโมเดล: {str(e)}"
     
 @app.route("/callback", methods=['POST'])
 def callback():
