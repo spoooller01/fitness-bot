@@ -37,40 +37,31 @@ def get_available_models():
     return valid_models
 
 def get_gemini_response(prompt, image_bytes=None, mime_type="image/jpeg"):
-    try:
-        valid_models = get_available_models()
-        print(f"--- Available Models in your account: {valid_models} ---")
-        
-        if not valid_models:
-            return "ไม่พบโมเดลที่รองรับในบัญชีนี้ กรุณาเช็ก API Key"
-
-        last_error = None
-        for model_name in valid_models:
-            try:
-                print(f"Trying model: {model_name}")
-                model = genai.GenerativeModel(model_name)
+    # กำหนดเฉพาะโมเดลที่เราต้องการใช้งานจริงเท่านั้น
+    target_models = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    
+    last_error = None
+    for model_name in target_models:
+        try:
+            print(f"Trying target model: {model_name}")
+            model = genai.GenerativeModel(model_name)
+            
+            if image_bytes:
+                image_data = {
+                    "mime_type": mime_type,
+                    "data": image_bytes
+                }
+                response = model.generate_content([prompt, image_data])
+            else:
+                response = model.generate_content(prompt)
                 
-                # หากมีรูปภาพส่งเข้ามา ให้จัด Format ส่งคู่กับ prompt
-                if image_bytes:
-                    image_data = {
-                        "mime_type": mime_type,
-                        "data": image_bytes
-                    }
-                    response = model.generate_content([prompt, image_data])
-                else:
-                    response = model.generate_content(prompt)
-                    
-                return response.text
-            except Exception as err:
-                print(f"Failed with {model_name}: {err}")
-                last_error = err
-                continue
+            return response.text
+        except Exception as err:
+            print(f"Failed with {model_name}: {err}")
+            last_error = err
+            continue
 
-        return f"ระบบ AI ขัดข้อง: {last_error}"
-
-    except Exception as e:
-        print(f"Gemini Exception: {e}")
-        return f"เกิดข้อผิดพลาดในการดึงโมเดล: {str(e)}"
+    return f"ระบบ AI ขัดข้อง: {last_error}"
     
 @app.route("/callback", methods=['POST'])
 def callback():
