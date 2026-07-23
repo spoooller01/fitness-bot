@@ -26,21 +26,11 @@ configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
 def get_gemini_response(prompt):
     try:
-        # 1. ดึงรายชื่อโมเดลทั้งหมดที่ API Key ของเราใช้งานได้จริง
-        available_models = [
-            m.name for m in genai.list_models() 
-            if 'generateContent' in m.supported_generation_methods
-        ]
+        # ใช้ชื่อโมเดลมาตรฐานของ Gemini API 
+        model_name = 'gemini-2.0-flash'
+        print(f"--- RUNNING MODEL: {model_name} ---")
         
-        if not available_models:
-            return "ไม่พบโมเดล AI ที่พร้อมใช้งานในขณะนี้"
-
-        # 2. เลือกโมเดลแรกสุดที่ค้นพบในบัญชี (ไม่ต้องใส่ชื่อรุ่นแบบสุ่มเอง)
-        selected_model = available_models[0]
-        print(f"Using model: {selected_model}")
-        
-        # 3. ประมวลผลข้อความ
-        model = genai.GenerativeModel(selected_model)
+        model = genai.GenerativeModel(model_name)
         response = model.generate_content(prompt)
         return response.text
         
